@@ -12,27 +12,28 @@ class Window:
         self.objects = []
         self.canvas = np.zeros((self.height, self.width, 3), np.uint8)
         self.fps = 60
-
-        self.eventHandlers = defaultdict(list)
-        self.addEventHandler('onKeyDown', self.defaultKeyDownHandler)
+        self.event_listeners = defaultdict(list)
 
         cv2.namedWindow(self.name)
         cv2.resizeWindow(self.name, self.width, self.height)
-        cv2.setMouseCallback(self.name, self.mouseCallback)
+        cv2.setMouseCallback(self.name, self.mouse_callback)
 
     def show(self):
         while self:
             self.update()
             key = cv2.waitKey(1 if self.fps < 0 else int(1000 / self.fps))
             if key != -1:
-                for callback in self.eventHandlers['onKeyDown']:
+                for callback in self.event_listeners['onKeyDown']:
                     callback(key)
+                if key == 27: # ESC
+                    self.close()
+                    break
 
     def update(self):
-        for callback in self.eventHandlers['onUpdate']:
+        for callback in self.event_listeners['onUpdate']:
             callback(self.delta)
         self.draw()
-        cv2.imshow(self.name, cv2.cvtColor(self.canvas, cv2.COLOR_RGB2BGR))
+        cv2.imshow(self.name, self.canvas)
 
     def draw(self):
         self.canvas[:] = self.background_color
@@ -43,17 +44,19 @@ class Window:
     def add(self, obj):
         self.objects.append(obj)
 
-    def mouseCallback(self, event, x, y, flags, param):
+    def mouse_callback(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            for callback in self.event_listeners['onMouseDown']:
+                callback(x, y)
         if event == cv2.EVENT_MOUSEMOVE:
-            for callback in self.eventHandlers['onMouseMove']:
+            for callback in self.event_listeners['onMouseMove']:
+                callback(x, y)
+        if event == cv2.EVENT_LBUTTONUP:
+            for callback in self.event_listeners['onMouseUp']:
                 callback(x, y)
 
-    def addEventHandler(self, event, callback):
-        self.eventHandlers[event].append(callback)
-
-    def defaultKeyDownHandler(self, key):
-        if key == 27: # ESC
-            self.close()
+    def add_event_listener(self, event, callback):
+        self.event_listeners[event].append(callback)
 
     def close(self):
         try:
@@ -119,21 +122,50 @@ class Object:
     
 
 class Sprite(Object):
-    def __init__(self, array, *args, **kwargs):
+    def __init__(self, data, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if type(array) is str:
-            array = cv2.imread(array)
-        self.array = np.array(array, dtype=np.uint8)
+        if type(data) is str:
+            data = cv2.imread(data)
+        self.pixels = np.array(data, dtype=np.uint8)
 
     def draw(self, canvas):
         sx = max(-self.x, 0)
         sy = max(-self.y, 0)
-        ex = self.array.shape[1] - max(self.x + self.array.shape[1] - canvas.shape[1], 0)
-        ey = self.array.shape[0] - max(self.y + self.array.shape[0] - canvas.shape[0], 0)
+        ex = self.pixels.shape[1] - max(self.x + self.pixels.shape[1] - canvas.shape[1], 0)
+        ey = self.pixels.shape[0] - max(self.y + self.pixels.shape[0] - canvas.shape[0], 0)
         if sx < ex and sy < ey:
-            canvas[self.y+sy:self.y+ey, self.x+sx:self.x+ex] = self.array[sy:ey, sx:ex]
+            if self.pixels.shape[-1] == 4: # alpha blending
+                alpha = self.pixels[sy:ey, sx:ex, 3:4] / 255
+                area = canvas[self.y+sy:self.y+ey, self.x+sx:self.x+ex]
+                canvas[self.y+sy:self.y+ey, self.x+sx:self.x+ex] = (1 - alpha) * area + alpha * self.pixels[sy:ey, sx:ex, :3]
+            else:
+                canvas[self.y+sy:self.y+ey, self.x+sx:self.x+ex] = self.pixels[sy:ey, sx:ex]
         super().draw(canvas)
 
+    def scale(self, factor):
+        self.pixels = cv2.resize(self.pixels, (0, 0), fx=factor, fy=factor)
+
+    def contain(self, x, y):
+        return 0 <= x - self.x < self.width and 0 <= y - self.y < self.height
+    
     @property
-    def pixels(self):
-        return self.array
+    def width(self):
+        return self.pixels.shape[1]
+    
+    @property
+    def height(self):
+        return self.pixels.shape[0]
+    
+class Text(Object):
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+        self.font = cv2.FONT_HERSHEY_COMPLEX
+        self.font_scale = 1
+        self.font_color = (255, 255, 255)
+        self.font_thickness = 1
+        self.font_line_type = cv2.LINE_AA
+    
+    def draw(self, canvas):
+        cv2.putText(canvas, self.text, (self.x, self.y), self.font, self.font_scale, self.font_color, self.font_thickness, self.font_line_type)
+        super().draw(canvas)
