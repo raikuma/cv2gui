@@ -84,6 +84,7 @@ class Object:
     def __init__(self, x=0, y=0):
         self._x = x
         self._y = y
+        self.parent = None
         self.childs = []
         self.visible = True
 
@@ -94,6 +95,7 @@ class Object:
 
     def add(self, obj):
         self.childs.append(obj)
+        obj.parent = self
 
     @property
     def x(self):
@@ -124,6 +126,18 @@ class Object:
     @pos.setter
     def pos(self, value):
         self.x, self.y = value
+
+    @property
+    def rpos(self):
+        if self.parent is None:
+            return self.pos
+        else:
+            return (self.x - self.parent.x, self.y - self.parent.y)
+
+    @rpos.setter
+    def rpos(self, value):
+        self.x = value[0] + self.parent.x
+        self.y = value[1] + self.parent.y
 
 
 class Sprite(Object):
@@ -190,13 +204,10 @@ class Text(Object):
         self.align = align
 
     def draw(self, canvas):
-        textsize = cv2.getTextSize(
-            self.text, self.font, self.font_scale, self.font_thickness
-        )[0]
         if self.align == "center":
-            dx = -textsize[0] // 2
+            dx = -self.width // 2
         elif self.align == "right":
-            dx = -textsize[0]
+            dx = -self.width
         else:
             dx = 0
         cv2.putText(
@@ -210,3 +221,15 @@ class Text(Object):
             self.font_line_type,
         )
         super().draw(canvas)
+
+    @property
+    def width(self):
+        return cv2.getTextSize(
+            self.text, self.font, self.font_scale, self.font_thickness
+        )[0][0]
+
+    @property
+    def height(self):
+        return cv2.getTextSize(
+            self.text, self.font, self.font_scale, self.font_thickness
+        )[0][1]

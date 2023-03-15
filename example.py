@@ -18,17 +18,19 @@ win.add(container)
 def onMouseMove(x, y):
     container.pos = (x, y)
     print(x, y)
-win.addEventHandler('onMouseMove', onMouseMove)
+win.add_event_listener('onMouseMove', onMouseMove)
 
 def onKeyDown(key):
     if key == ord('d'):
-        container.x += 10
+        obj.rpos = (obj.rpos[0] + 1, obj.rpos[1])
+    if key == ord('a'):
+        obj.rpos = (obj.rpos[0] - 1, obj.rpos[1])
     print(key)
-win.addEventHandler('onKeyDown', onKeyDown)
+win.add_event_listener('onKeyDown', onKeyDown)
 
 def onUpdate(delta):
     arr = obj.pixels
     arr[:, :, 0] += 1
-win.addEventHandler('onUpdate', onUpdate)
+win.add_event_listener('onUpdate', onUpdate)
 
 win.show()
