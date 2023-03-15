@@ -5,14 +5,21 @@ import numpy as np
 
 
 class Window:
-    def __init__(self, name, width=640, height=480, background_color=(0, 0, 0)):
+    # Events
+    ON_KEY_DOWN = "onKeyDown"
+    ON_MOUSE_DOWN = "onMouseDown"
+    ON_MOUSE_MOVE = "onMouseMove"
+    ON_MOUSE_UP = "onMouseUp"
+    ON_UPDATE = "onUpdate"
+
+    def __init__(self, name, width=640, height=480, background_color=(0, 0, 0), fps=60):
         self.name = name
         self.width = width
         self.height = height
         self.background_color = background_color
         self.objects = []
         self.canvas = np.zeros((self.height, self.width, 3), np.uint8)
-        self.fps = 60
+        self.fps = fps
         self.event_listeners = defaultdict(list)
 
         cv2.namedWindow(self.name)
@@ -24,14 +31,14 @@ class Window:
             self.update()
             key = cv2.waitKey(1 if self.fps < 0 else int(1000 / self.fps))
             if key != -1:
-                for callback in self.event_listeners["onKeyDown"]:
+                for callback in self.event_listeners[self.ON_KEY_DOWN]:
                     callback(key)
                 if key == 27:  # ESC
                     self.close()
                     break
 
     def update(self):
-        for callback in self.event_listeners["onUpdate"]:
+        for callback in self.event_listeners[self.ON_UPDATE]:
             callback(self.delta)
         self.draw()
         cv2.imshow(self.name, self.canvas)
@@ -48,13 +55,13 @@ class Window:
 
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
-            for callback in self.event_listeners["onMouseDown"]:
+            for callback in self.event_listeners[self.ON_MOUSE_DOWN]:
                 callback(x, y)
         if event == cv2.EVENT_MOUSEMOVE:
-            for callback in self.event_listeners["onMouseMove"]:
+            for callback in self.event_listeners[self.ON_MOUSE_MOVE]:
                 callback(x, y)
         if event == cv2.EVENT_LBUTTONUP:
-            for callback in self.event_listeners["onMouseUp"]:
+            for callback in self.event_listeners[self.ON_MOUSE_UP]:
                 callback(x, y)
 
     def add_event_listener(self, event, callback):
@@ -156,17 +163,15 @@ class Sprite(Object):
         ey = self.pixels.shape[0] - max(
             self.y + self.pixels.shape[0] - canvas.shape[0], 0
         )
+        target_area = np.s_[self.y + sy : self.y + ey, self.x + sx : self.x + ex]
         if sx < ex and sy < ey:
             if self.pixels.shape[-1] == 4:  # alpha blending
                 alpha = self.pixels[sy:ey, sx:ex, 3:4] / 255
-                area = canvas[self.y + sy : self.y + ey, self.x + sx : self.x + ex]
-                canvas[self.y + sy : self.y + ey, self.x + sx : self.x + ex] = (
-                    1 - alpha
-                ) * area + alpha * self.pixels[sy:ey, sx:ex, :3]
+                canvas[target_area] = (1 - alpha) * canvas[
+                    target_area
+                ] + alpha * self.pixels[sy:ey, sx:ex, :3]
             else:
-                canvas[
-                    self.y + sy : self.y + ey, self.x + sx : self.x + ex
-                ] = self.pixels[sy:ey, sx:ex]
+                canvas[target_area] = self.pixels[sy:ey, sx:ex]
         super().draw(canvas)
 
     def scale(self, factor):
