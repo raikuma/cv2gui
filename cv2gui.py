@@ -39,7 +39,8 @@ class Window:
         self.canvas[:] = self.background_color
         for obj in self.objects:
             # print(sys.getrefcount(obj))
-            obj.draw(self.canvas)
+            if obj.visible:
+                obj.draw(self.canvas)
 
     def add(self, obj):
         self.objects.append(obj)
@@ -82,10 +83,12 @@ class Object:
         self._x = x
         self._y = y
         self.childs = []
+        self.visible = True
 
     def draw(self, canvas):
         for obj in self.childs:
-            obj.draw(canvas)
+            if obj.visible:
+                obj.draw(canvas)
 
     def add(self, obj):
         self.childs.append(obj)
@@ -157,15 +160,23 @@ class Sprite(Object):
         return self.pixels.shape[0]
     
 class Text(Object):
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text, *args, font_size=100, color=(255,255,255), align='center', **kwargs):
         super().__init__(*args, **kwargs)
         self.text = text
         self.font = cv2.FONT_HERSHEY_COMPLEX
-        self.font_scale = 1
-        self.font_color = (255, 255, 255)
+        self.font_scale = font_size / 50
+        self.font_color = color
         self.font_thickness = 1
         self.font_line_type = cv2.LINE_AA
+        self.align = align
     
     def draw(self, canvas):
-        cv2.putText(canvas, self.text, (self.x, self.y), self.font, self.font_scale, self.font_color, self.font_thickness, self.font_line_type)
+        textsize = cv2.getTextSize(self.text, self.font, self.font_scale, self.font_thickness)[0]
+        if self.align == 'center':
+            dx = -textsize[0]//2
+        elif self.align == 'right':
+            dx = -textsize[0]
+        else:
+            dx = 0
+        cv2.putText(canvas, self.text, (self.x + dx, self.y), self.font, self.font_scale, self.font_color, self.font_thickness, self.font_line_type)
         super().draw(canvas)
